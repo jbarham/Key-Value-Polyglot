@@ -42,7 +42,7 @@ func main() {
 	   defer pprof.StopCPUProfile()
 	*/
 
-	listener, err := net.Listen("tcp", "127.0.0.1:11212")
+	listener, err := net.Listen("tcp", "127.0.0.1:11211")
 	if err != nil {
 		panic("Error listening on 11211: " + err.Error())
 	}
