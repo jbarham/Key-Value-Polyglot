@@ -8,10 +8,30 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	//"runtime/pprof"   // Uncomment to profile
 )
 
-var CACHE map[string]string
+// Synchronize map access between multiple goroutines.
+type cache struct {
+	m  map[string]string
+	rw sync.RWMutex
+}
+
+func (c *cache) Set(key, val string) {
+	c.rw.Lock()
+	defer c.rw.Unlock()
+	c.m[key] = val
+}
+
+func (c *cache) Get(key string) (val string, ok bool) {
+	c.rw.RLock()
+	defer c.rw.RUnlock()
+	val, ok = c.m[key]
+	return val, ok
+}
+
+var CACHE = &cache{m: make(map[string]string)}
 
 func main() {
 
@@ -22,12 +42,10 @@ func main() {
 	   defer pprof.StopCPUProfile()
 	*/
 
-	listener, err := net.Listen("tcp", "127.0.0.1:11211")
+	listener, err := net.Listen("tcp", "127.0.0.1:11212")
 	if err != nil {
 		panic("Error listening on 11211: " + err.Error())
 	}
-
-	CACHE = make(map[string]string)
 
 	if isSingle() {
 		netconn, err := listener.Accept()
@@ -87,7 +105,7 @@ func handleConn(conn net.Conn) {
 
 		case "get":
 			key := parts[1]
-			val, ok := CACHE[key]
+			val, ok := CACHE.Get(key)
 			if ok {
 				length := strconv.Itoa(len(val))
 				conn.Write([]uint8("VALUE " + key + " 0 " + length + "\r\n"))
@@ -103,7 +121,7 @@ func handleConn(conn net.Conn) {
 			// Really we should read exactly 'length' bytes + \r\n
 			val := make([]byte, length)
 			reader.Read(val)
-			CACHE[key] = string(val)
+			CACHE.Set(key, string(val))
 			conn.Write([]uint8("STORED\r\n"))
 		}
 	}
